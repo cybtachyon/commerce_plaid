@@ -1,0 +1,10 @@
+plaid_link:
+  version: VERSION
+  js:
+    https://cdn.plaid.com/link/v2/stable/link-initialize.js: { type: external }
+    js/commerce-plaid.js: {}
+  dependencies:
+    - core/jquery
+    - core/jquery.once
+    - core/drupal
+    - core/drupalSettings

@@ -1,0 +1,9 @@
+commerce_plaid.oauth:
+  path: "/plaid-oauth-page"
+  defaults:
+    _title: "Plaid OAuth"
+    _controller: '\Drupal\commerce_plaid\Controller\PlaidController::plaidOauthPage'
+  requirements:
+    _permission: 'access checkout'
+  options:
+    no_cache: TRUE

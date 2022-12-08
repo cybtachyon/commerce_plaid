@@ -1,0 +1,39 @@
+commerce_plaid.commerce_payment_gateway.plugin.plaid:
+  type: commerce_payment_gateway_configuration
+  mapping:
+    client_id:
+      type: string
+      label: 'Client ID'
+    secret_key:
+      type: string
+      label: 'Secret key'
+    client_name:
+      type: string
+      label: 'Client name'
+    recipient:
+      type: mapping
+      mapping:
+        iban:
+          type: string
+          label: 'IBAN'
+        bacs:
+          type: mapping
+          mapping:
+            account_number:
+              type: string
+              label: 'BACS Account number'
+            sort_code:
+              type: string
+              label: 'BACS Sort code'
+    country_codes:
+      type: sequence
+      label: 'Country codes'
+      sequence:
+        type: string
+        label: 'Country code'
+    webhook_base_url:
+      type: string
+      label: 'Webhook base URL'
+    log_api_calls:
+      type: boolean
+      label: 'Log API calls'

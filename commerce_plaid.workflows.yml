@@ -1,0 +1,26 @@
+payment_plaid:
+  id: payment_plaid
+  group: commerce_payment
+  label: 'Plaid'
+  states:
+    new:
+      label: 'New'
+    processing:
+      label: 'Processing'
+    completed:
+      label: 'Completed'
+    voided:
+      label: 'Voided'
+  transitions:
+    create:
+      label: 'Create payment'
+      from: [new]
+      to: processing
+    receive:
+      label: 'Receive payment'
+      from: [processing]
+      to: completed
+    void:
+      label: 'Void payment'
+      from: [processing]
+      to: voided

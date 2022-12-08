@@ -1,0 +1,7 @@
+name: Commerce Plaid
+type: module
+description: 'Provides Commerce integration for Plaid.'
+package: Commerce (contrib)
+core_version_requirement: ^8.9 || ^9
+dependencies:
+  - commerce:commerce_payment
