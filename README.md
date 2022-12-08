@@ -1,3 +1,7 @@
+#Pre-requirements
+You should have Plaid account.
+Contact Plaid support and request access to Payment Initiation product.
+
 # Setup
 1. Enable the commerce_plaid.
 2. Add new payment gateway on the page /admin/commerce/config/payment-gateways
@@ -14,7 +18,7 @@
 2. Install ngrok on your system https://ngrok.com/download. Be sure to sign-up to ngrok and add auth token 'ngrok config add-authtoken <token>' on your system.
 3. In root folder of your project run 'ddev share'. You should see message with 'Session Status online' and several other lines.
 4. Copy URL from Forwarding line.
-5. Use the URL in field 'Webhook base URL' on the Plaid payment gateway's settings page. Enable also 'Log API calls'. Submit the settings form.
+5. Use the URL in field 'Webhook base URL' on the Plaid payment gateway's settings page. Enable also 'Log API calls'. Submit the settings form. Don't forget to update the URL after each restart of the ngrok ('ddev share').
 6. Test checkout with Plaid payment gateway and check the Recent log messages in admin UI of the site.
 7. You should find messages like "Plaid webhook request: ...".
 
