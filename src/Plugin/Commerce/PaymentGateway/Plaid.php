@@ -115,14 +115,15 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
    */
   public function defaultConfiguration() {
     return [
-      'client_id' => '',
-      'secret_key' => '',
-      'client_name' => '',
-      'recipient' => '',
-      'webhook_base_url' => '',
-      'log_api_calls' => '',
-      'country_codes' => '',
-    ] + parent::defaultConfiguration();
+        'client_id' => '',
+        'secret_key' => '',
+        'validate_key' => 1,
+        'client_name' => '',
+        'recipient' => '',
+        'webhook_base_url' => '',
+        'log_api_calls' => '',
+        'country_codes' => '',
+      ] + parent::defaultConfiguration();
   }
 
   /**
@@ -142,6 +143,12 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
       '#title' => $this->t('Secret key'),
       '#default_value' => $this->configuration['secret_key'],
       '#required' => TRUE,
+    ];
+    $form['validate_key'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Validate key'),
+      '#description' => $this->t('Validate key on saving the settings form by making request to Plaid API.'),
+      '#default_value' => $this->configuration['validate_key'],
     ];
     $form['client_name'] = [
       '#type' => 'textfield',
@@ -294,6 +301,10 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
       }
     }
 
+    if (!$form_state->getValue('validate_key')) {
+      return;
+    }
+
     // Test client_id and secret_key.
     try {
       $test_credentials_client = new PlaidClient(
@@ -321,6 +332,7 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
       $values = $form_state->getValue($form['#parents']);
       $this->configuration['client_id'] = $values['client_id'];
       $this->configuration['secret_key'] = $values['secret_key'];
+      $this->configuration['validate_key'] = $values['validate_key'];
       $this->configuration['client_name'] = $values['client_name'];
       $this->configuration['recipient'] = $values['recipient'] ?? NULL;
       $this->configuration['webhook_base_url'] = $values['webhook_base_url'];

@@ -7,6 +7,9 @@ commerce_plaid.commerce_payment_gateway.plugin.plaid:
     secret_key:
       type: string
       label: 'Secret key'
+    validate_key:
+      type: boolean
+      label: 'Validate key'
     client_name:
       type: string
       label: 'Client name'
