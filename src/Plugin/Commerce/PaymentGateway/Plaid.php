@@ -316,7 +316,10 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
       $this->messenger()->addMessage($this->t('Connectivity to Plaid successfully verified.'));
     }
     catch (\Exception $exception) {
-      $this->messenger()->addError($this->t('Invalid client_id or secret_key specified.'));
+      $response = $exception->getResponse();
+      $error_code = $response->error_code ?? '';
+      $error_message = $response->error_message ?? '';
+      $this->messenger()->addError($this->t('Invalid client_id or secret_key specified. Error code: "@error_code". Error message: "@error_message"', ['@error_code' => $error_code, '@error_message' => $error_message]));
       $form_state->setError($form['client_id']);
       $form_state->setError($form['secret_key']);
     }
