@@ -301,7 +301,7 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
       }
     }
 
-    if (!$form_state->getValue('validate_key')) {
+    if (empty($values['validate_key'])) {
       return;
     }
 
