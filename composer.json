@@ -5,7 +5,7 @@
     "homepage": "http://drupal.org/project/commerce_plaid",
     "license": "GPL-2.0+",
     "require": {
-        "drupal/core": "^8.8 || ^9",
+        "drupal/core": "^9.3 || ^10",
         "drupal/commerce": "~2.0 || ^3",
         "tomorrow-ideas/plaid-sdk-php" : "^1.0",
         "firebase/php-jwt": "^v6.3.0"

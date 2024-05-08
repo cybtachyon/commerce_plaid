@@ -1,9 +1,9 @@
-(function ($, Drupal, drupalSettings) {
+(function (Drupal, once) {
 
   Drupal.behaviors.commercePlaidLink = {
-    attach: function (context, settings) {
+    attach(context, settings) {
       // Open Plaid Link on checkout page.
-      $("form.commerce-checkout-flow", context).once('commerce-plaid-link').each(function () {
+      once('commerce-plaid-link', 'form.commerce-checkout-flow', context).forEach(function () {
         if (typeof settings.commercePlaid === 'undefined' ||
           settings.commercePlaid.linkToken === 'undefined' ||
           settings.commercePlaid.returnUrl === 'undefined' ||
@@ -31,7 +31,7 @@
       });
 
       // Reinitialize Plaid Link after the OAuth flow.
-      $(".plaid-oauth-page", context).once('commerce-plaid-link').each(function () {
+      once('commerce-plaid-link', '.plaid-oauth-page', context).forEach(function () {
         if (!localStorage.getItem('commercePlaid')) {
           return;
         }
@@ -55,4 +55,4 @@
     }
   }
 
-})(jQuery, Drupal, drupalSettings);
+})(Drupal, once);
