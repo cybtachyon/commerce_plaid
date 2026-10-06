@@ -2,48 +2,44 @@
 
 namespace Drupal\commerce_plaid\Plugin\Commerce\PaymentGateway;
 
+use ChkltLabs\Plaid\Entities\BacsAccount;
+use ChkltLabs\Plaid\Entities\RecipientAddress;
+use ChkltLabs\Plaid\Entities\User as PlaidUser;
+use ChkltLabs\Plaid\Plaid as PlaidClient;
 use Drupal\commerce_order\Entity\OrderInterface;
+use Drupal\commerce_payment\Attribute\CommercePaymentGateway;
 use Drupal\commerce_payment\Entity\PaymentInterface;
-use Drupal\commerce_payment\PaymentMethodTypeManager;
-use Drupal\commerce_payment\PaymentTypeManager;
 use Drupal\commerce_payment\Plugin\Commerce\PaymentGateway\OffsitePaymentGatewayBase;
+use Drupal\commerce_plaid\PluginForm\PlaidLinkForm;
 use Drupal\commerce_plaid\RemotePaymentState;
-use Drupal\commerce_price\MinorUnitsConverterInterface;
-use Drupal\Component\Datetime\TimeInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
 use Firebase\JWT\JWK;
 use Firebase\JWT\JWT;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
-use TomorrowIdeas\Plaid\Entities\BacsAccount;
-use TomorrowIdeas\Plaid\Entities\RecipientAddress;
-use TomorrowIdeas\Plaid\Entities\User as PlaidUser;
-use TomorrowIdeas\Plaid\Plaid as PlaidClient;
 
 /**
  * Provides the Plaid payment gateway.
- *
- * @CommercePaymentGateway(
- *   id = "plaid",
- *   label = @Translation("Plaid"),
- *   display_label = @Translation("Plaid"),
- *   modes = {
- *     "sandbox" = @Translation("Sandbox"),
- *     "development" = @Translation("Development"),
- *     "production" = @Translation("Production"),
- *   },
- *   payment_method_types = {"plaid"},
- *   credit_card_types = {
- *     "amex", "discover", "mastercard", "visa",
- *   },
- *   forms = {
- *     "offsite-payment" = "Drupal\commerce_plaid\PluginForm\PlaidLinkForm",
- *   },
- *   payment_type = "plaid",
- * )
  */
+#[CommercePaymentGateway(
+  id: "plaid",
+  label: new TranslatableMarkup("Plaid"),
+  display_label: new TranslatableMarkup("Plaid"),
+  modes: [
+    "development" => new TranslatableMarkup("Development"),
+    "production" => new TranslatableMarkup("Production"),
+    "sandbox" => new TranslatableMarkup("Sandbox"),
+  ],
+  forms: [
+    "offsite-payment" => PlaidLinkForm::class,
+  ],
+  payment_type: "plaid",
+  payment_method_types: ['plaid'],
+  credit_card_types: ['amex', 'discover', 'mastercard', 'visa'],
+  requires_billing_information: FALSE,
+)]
 class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
 
   /**
@@ -60,42 +56,14 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
   const JTW_EXPIRATION = 86400;
 
   /**
-   * The Plaid client object used for making API calls.
-   *
-   * @var \TomorrowIdeas\Plaid\Plaid
-   */
-  protected $api;
-
-  /**
-   * The logger.
-   *
-   * @var \Drupal\Core\Logger\LoggerChannelInterface
-   */
-  protected $logger;
-
-  /**
-   * The language manager.
-   *
-   * @var \Drupal\Core\Language\LanguageManagerInterface
-   */
-  protected $languageManager;
-
-  /**
-   * The key value expirable factory.
-   *
-   * @var \Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface
-   */
-  protected $keyValueExpirable;
-
-  /**
    * {@inheritdoc}
    */
-  public function __construct(array $configuration, $plugin_id, $plugin_definition, EntityTypeManagerInterface $entity_type_manager, PaymentTypeManager $payment_type_manager, PaymentMethodTypeManager $payment_method_type_manager, TimeInterface $time, MinorUnitsConverterInterface $minor_units_converter = NULL) {
-    parent::__construct($configuration, $plugin_id, $plugin_definition, $entity_type_manager, $payment_type_manager, $payment_method_type_manager, $time, $minor_units_converter);
+  public function __construct(array $configuration, $plugin_id, $plugin_definition) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->api = new PlaidClient(
-      $this->configuration['client_id'],
-      $this->configuration['secret_key'],
-      $this->getMode()
+      $this->configuration['client_id'] ?? '',
+      $this->configuration['secret_key'] ?? '',
+        $this->configuration['mode'] ?? 'development'
     );
   }
 
@@ -115,15 +83,15 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
    */
   public function defaultConfiguration() {
     return [
-        'client_id' => '',
-        'secret_key' => '',
-        'validate_key' => 1,
-        'client_name' => '',
-        'recipient' => '',
-        'webhook_base_url' => '',
-        'log_api_calls' => '',
-        'country_codes' => '',
-      ] + parent::defaultConfiguration();
+      'client_id' => '',
+      'client_name' => '',
+      'country_codes' => '',
+      'log_api_calls' => '',
+      'recipient' => '',
+      'secret_key' => '',
+      'validate_key' => 1,
+      'webhook_base_url' => '',
+    ] + parent::defaultConfiguration();
   }
 
   /**
@@ -133,140 +101,84 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
     $form = parent::buildConfigurationForm($form, $form_state);
 
     $form['client_id'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Client ID'),
       '#default_value' => $this->configuration['client_id'],
       '#required' => TRUE,
+      '#title' => $this->t('Client ID'),
+      '#type' => 'textfield',
     ];
     $form['secret_key'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Secret key'),
       '#default_value' => $this->configuration['secret_key'],
       '#required' => TRUE,
+      '#title' => $this->t('Secret key'),
+      '#type' => 'textfield',
     ];
     $form['validate_key'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Validate key'),
-      '#description' => $this->t('Validate key on saving the settings form by making request to Plaid API.'),
       '#default_value' => $this->configuration['validate_key'],
+      '#description' => $this->t('Validate key on saving the settings form by making request to Plaid API.'),
+      '#title' => $this->t('Validate key'),
+      '#type' => 'checkbox',
     ];
     $form['client_name'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Client name'),
-      '#description' => $this->t('The name of your application, as it should be displayed in Link. Maximum length of 30 characters.<br>If a value longer than 30 characters is provided, Link will display "This Application" instead.'),
       '#default_value' => $this->configuration['client_name'],
+      '#description' => $this->t('The name of your application, as it should be displayed in Link. Maximum length of 30 characters.<br>If a value longer than 30 characters is provided, Link will display "This Application" instead.'),
       '#required' => TRUE,
+      '#title' => $this->t('Client name'),
+      '#type' => 'textfield',
     ];
     $form['recipient'] = [
-      '#type' => 'fieldset',
       '#title' => $this->t('Recipient'),
+      '#type' => 'fieldset',
     ];
     $form['recipient']['bacs'] = [
-      '#type' => 'fieldset',
-      '#title' => $this->t('BACS'),
       '#description' => $this->t("The account number and sort code of the recipient's account."),
+      '#title' => $this->t('BACS'),
+      '#type' => 'fieldset',
     ];
     $form['recipient']['iban'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('IBAN'),
       '#default_value' => $this->configuration['recipient']['iban'] ?? NULL,
       '#description' => $this->t('The International Bank Account Number (IBAN) for the recipient.<br>If BACS data is not provided, an IBAN is required.'),
       '#maxlength' => '34',
       '#size' => 34,
+      '#title' => $this->t('IBAN'),
+      '#type' => 'textfield',
     ];
     $form['recipient']['bacs']['account_number'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Account number'),
       '#default_value' => $this->configuration['recipient']['bacs']['account_number'] ?? NULL,
       '#maxlength' => '10',
       '#size' => 10,
+      '#title' => $this->t('Account number'),
+      '#type' => 'textfield',
     ];
     $form['recipient']['bacs']['sort_code'] = [
-      '#type' => 'textfield',
-      '#title' => $this->t('Sort code'),
       '#default_value' => $this->configuration['recipient']['bacs']['sort_code'] ?? NULL,
       '#maxlength' => '6',
       '#size' => 6,
+      '#title' => $this->t('Sort code'),
+      '#type' => 'textfield',
     ];
     $supported_country_codes = $this->getSupportedCountryCodes();
     $form['country_codes'] = [
-      '#type' => 'checkboxes',
-      '#title' => $this->t('Country codes'),
+      '#default_value' => $this->configuration['country_codes'],
       '#description' => $this->t('Institutions from all listed countries will be shown in Plaid Link.<br> More info https://plaid.com/docs/api/tokens/#link-token-create-request-country-codes'),
       '#options' => array_combine($supported_country_codes, $supported_country_codes),
-      '#default_value' => $this->configuration['country_codes'],
       '#required' => TRUE,
+      '#title' => $this->t('Country codes'),
+      '#type' => 'checkboxes',
     ];
     $form['webhook_base_url'] = [
-      '#type' => 'url',
-      '#title' => $this->t('Webhook base URL'),
-      '#description' => $this->t('Can be used custom webhook base URL for testing. For example if ngrok is used on local environment.<br> Leave empty if the base URL is the same as the base URL of the site.'),
       '#default_value' => $this->configuration['webhook_base_url'],
+      '#description' => $this->t('Can be used custom webhook base URL for testing. For example if ngrok is used on local environment.<br> Leave empty if the base URL is the same as the base URL of the site.'),
+      '#title' => $this->t('Webhook base URL'),
+      '#type' => 'url',
     ];
     $form['log_api_calls'] = [
-      '#type' => 'checkbox',
-      '#title' => $this->t('Log API calls.'),
       '#default_value' => $this->configuration['log_api_calls'],
       '#description' => $this->t('Log API call.'),
+      '#title' => $this->t('Log API calls.'),
+      '#type' => 'checkbox',
     ];
 
     return $form;
-  }
-
-  /**
-   * Returns supported array of the supported country codes.
-   *
-   * See https://plaid.com/docs/api/tokens/#link-token-create-request-country-codes.
-   *
-   * @return string[]
-   *   Array of country codes.
-   */
-  protected function getSupportedCountryCodes() {
-    return [
-      'US',
-      'GB',
-      'ES',
-      'NL',
-      'FR',
-      'IE',
-      'CA',
-      'DE',
-      'IT',
-      'PL',
-      'DK',
-      'NO',
-      'SE',
-      'EE',
-      'LT',
-      'LV',
-    ];
-  }
-
-  /**
-   * Returns array of the supported language codes.
-   *
-   * See https://plaid.com/docs/api/tokens/#link-token-create-request-language.
-   *
-   * @return string[]
-   *   The array of language codes.
-   */
-  protected function getSupportedLanguages() {
-    return [
-      'da',
-      'nl',
-      'en',
-      'et',
-      'fr',
-      'de',
-      'it',
-      'lv',
-      'lt',
-      'no',
-      'po',
-      'ro',
-      'es',
-      'se',
-    ];
   }
 
   /**
@@ -379,9 +291,9 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
     }
     if ($log_api_calls) {
       $this->logRequestParams('Recipient create', [
-        '@name' => $name,
         '@account' => print_r($account, TRUE),
         '@address' => print_r($address, TRUE),
+        '@name' => $name,
       ]);
     }
     $recipient = $this->api->payments->createRecipient($name, $account, $address);
@@ -396,13 +308,13 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
     $reference = $order->id();
     if ($log_api_calls) {
       $this->logRequestParams('Payment create', [
-        '@recipient_id' => $recipient->recipient_id,
-        '@reference' => $reference,
         '@amount' => $amount,
         '@currency' => $currency,
+        '@recipient_id' => $recipient->recipient_id,
+        '@reference' => $reference,
       ]);
     }
-    // Be sure that amount will be correctly json encoded in TomorrowIdeas\Plaid\Resources\AbstractResource::buildRequest(). See https://bugs.php.net/bug.php?id=74221.
+    // Be sure that amount will be correctly json encoded in ChkltLabs\Plaid\Resources\AbstractResource::buildRequest(). See https://bugs.php.net/bug.php?id=74221.
     ini_set('serialize_precision', -1);
     $plaid_payment = $this->api->payments->create($recipient->recipient_id, $reference, $amount, $currency);
     if ($log_api_calls) {
@@ -429,17 +341,186 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
     if ($log_api_calls) {
       $this->logRequestParams('Link token create', [
         '@client_name' => $client_name,
-        '@language' => $language,
         '@country_codes' => print_r($country_codes, TRUE),
-        '@user_id' => print_r($user_id, TRUE),
-        '@products' => print_r($products, TRUE),
-        '@webhook' => $webhook,
-        '@redirect_uri' => $redirect_uri,
+        '@language' => $language,
         '@payment_id' => $plaid_payment->payment_id,
+        '@products' => print_r($products, TRUE),
+        '@redirect_uri' => $redirect_uri,
+        '@user_id' => print_r($user_id, TRUE),
+        '@webhook' => $webhook,
       ]);
     }
     $link_token = $this->api->tokens->create($client_name, $language, $country_codes, $user_id, $products, $webhook, NULL, NULL, NULL, $redirect_uri, NULL, $plaid_payment->payment_id);
     return $link_token->link_token;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function onNotify(Request $request) {
+    if (!$this->isVerifiedWebhookRequest($request)) {
+      return;
+    }
+
+    parent::onNotify($request);
+    $content = $request->getContent();
+    $content = json_decode($content, TRUE);
+    if ($this->configuration['log_api_calls']) {
+      $this->logger->debug('Plaid webhook request: <pre>@content</pre>', [
+        '@content' => print_r($content, TRUE),
+      ]);
+    }
+    if (empty($content['webhook_type']) || empty($content['webhook_code'])) {
+      return;
+    }
+    if ($content['webhook_type'] !== self::WEBHOOK_TYPE || $content['webhook_code'] !== self::WEBHOOK_CODE) {
+      return;
+    }
+    if (empty($content['payment_id'])) {
+      return;
+    }
+    if (empty($content['new_payment_status'])) {
+      return;
+    }
+    /** @var \Drupal\commerce_payment\PaymentStorageInterface $commerce_payment_storage */
+    $commerce_payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
+    /** @var \Drupal\commerce_order\OrderStorage $commerce_order_storage */
+    $commerce_order_storage = $this->entityTypeManager->getStorage('commerce_order');
+
+    $payment = $commerce_payment_storage->loadByRemoteId($content['payment_id']);
+    if (!$payment && !empty($content['original_reference'])) {
+      $order = $commerce_order_storage->load($content['original_reference']);
+      if ($order) {
+        $payment = $commerce_payment_storage->create([
+          'amount' => $order->getBalance(),
+          'order_id' => $order->id(),
+          'payment_gateway' => $this->parentEntity->id(),
+          'remote_id' => $content['payment_id'],
+          'remote_state' => $content['new_payment_status'],
+          'state' => 'new',
+        ]);
+      }
+    }
+    else {
+      $payment->setRemoteState($content['new_payment_status']);
+      $this->logger->notice('Remote status of the Payment @payment_id was updated to ', [
+        '@new_status' => $content['new_payment_status'],
+        '@payment_id' => $payment->id(),
+      ]);
+    }
+    switch ($content['new_payment_status']) {
+      case RemotePaymentState::AUTHORISING:
+        $payment->setState('processing');
+        break;
+
+      case RemotePaymentState::REJECTED:
+      case RemotePaymentState::CANCELLED:
+      case RemotePaymentState::INSUFFICIENT_FUNDS:
+        $payment->setState('voided');
+        break;
+
+      case RemotePaymentState::EXECUTED:
+        $payment->setState('completed');
+        break;
+    }
+    $payment->save();
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function onCancel(OrderInterface $order, Request $request): void {
+    if (!empty($request->query->get('error_code'))) {
+      $message = $this->getPaymentErrorMessage($request->query->get('error_code'));
+      $this->messenger()->addError($message);
+    }
+    else {
+      parent::onCancel($order, $request);
+    }
+  }
+
+  /**
+   * The Plaid client object used for making API calls.
+   *
+   * @var \ChkltLabs\Plaid\Plaid
+   */
+  protected $api;
+
+  /**
+   * The logger.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
+   */
+  protected $logger;
+
+  /**
+   * The language manager.
+   *
+   * @var \Drupal\Core\Language\LanguageManagerInterface
+   */
+  protected $languageManager;
+
+  /**
+   * The key value expirable factory.
+   *
+   * @var \Drupal\Core\KeyValueStore\KeyValueExpirableFactoryInterface
+   */
+  protected $keyValueExpirable;
+
+  /**
+   * Returns supported array of the supported country codes.
+   *
+   * See https://plaid.com/docs/api/tokens/#link-token-create-request-country-codes.
+   *
+   * @return string[]
+   *   Array of country codes.
+   */
+  protected function getSupportedCountryCodes() {
+    return [
+      'US',
+      'GB',
+      'ES',
+      'NL',
+      'FR',
+      'IE',
+      'CA',
+      'DE',
+      'IT',
+      'PL',
+      'DK',
+      'NO',
+      'SE',
+      'EE',
+      'LT',
+      'LV',
+    ];
+  }
+
+  /**
+   * Returns array of the supported language codes.
+   *
+   * See https://plaid.com/docs/api/tokens/#link-token-create-request-language.
+   *
+   * @return string[]
+   *   The array of language codes.
+   */
+  protected function getSupportedLanguages() {
+    return [
+      'da',
+      'nl',
+      'en',
+      'et',
+      'fr',
+      'de',
+      'it',
+      'lv',
+      'lt',
+      'no',
+      'po',
+      'ro',
+      'es',
+      'se',
+    ];
   }
 
   /**
@@ -542,91 +623,6 @@ class Plaid extends OffsitePaymentGatewayBase implements PlaidInterface {
     }
 
     return FALSE;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function onNotify(Request $request) {
-    if (!$this->isVerifiedWebhookRequest($request)) {
-      return;
-    }
-
-    parent::onNotify($request);
-    $content = $request->getContent();
-    $content = json_decode($content, TRUE);
-    if ($this->configuration['log_api_calls']) {
-      $this->logger->debug('Plaid webhook request: <pre>@content</pre>', [
-        '@content' => print_r($content, TRUE),
-      ]);
-    }
-    if (empty($content['webhook_type']) || empty($content['webhook_code'])) {
-      return;
-    }
-    if ($content['webhook_type'] !== self::WEBHOOK_TYPE || $content['webhook_code'] !== self::WEBHOOK_CODE) {
-      return;
-    }
-    if (empty($content['payment_id'])) {
-      return;
-    }
-    if (empty($content['new_payment_status'])) {
-      return;
-    }
-    /** @var \Drupal\commerce_payment\PaymentStorageInterface $commerce_payment_storage */
-    $commerce_payment_storage = $this->entityTypeManager->getStorage('commerce_payment');
-    /** @var \Drupal\commerce_order\OrderStorage $commerce_order_storage */
-    $commerce_order_storage = $this->entityTypeManager->getStorage('commerce_order');
-
-    $payment = $commerce_payment_storage->loadByRemoteId($content['payment_id']);
-    if (!$payment && !empty($content['original_reference'])) {
-      $order = $commerce_order_storage->load($content['original_reference']);
-      if ($order) {
-        $payment = $commerce_payment_storage->create([
-          'state' => 'new',
-          'amount' => $order->getBalance(),
-          'payment_gateway' => $this->parentEntity->id(),
-          'order_id' => $order->id(),
-          'remote_id' => $content['payment_id'],
-          'remote_state' => $content['new_payment_status'],
-        ]);
-      }
-    }
-    else {
-      $payment->setRemoteState($content['new_payment_status']);
-      $this->logger->notice('Remote status of the Payment @payment_id was updated to ', [
-        '@payment_id' => $payment->id(),
-        '@new_status' => $content['new_payment_status'],
-      ]);
-    }
-    switch ($content['new_payment_status']) {
-      case RemotePaymentState::AUTHORISING:
-        $payment->setState('processing');
-        break;
-
-      case RemotePaymentState::REJECTED:
-      case RemotePaymentState::CANCELLED:
-      case RemotePaymentState::INSUFFICIENT_FUNDS:
-        $payment->setState('voided');
-        break;
-
-      case RemotePaymentState::EXECUTED:
-        $payment->setState('completed');
-        break;
-    }
-    $payment->save();
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function onCancel(OrderInterface $order, Request $request): void {
-    if (!empty($request->query->get('error_code'))) {
-      $message = $this->getPaymentErrorMessage($request->query->get('error_code'));
-      $this->messenger()->addError($message);
-    }
-    else {
-      parent::onCancel($order, $request);
-    }
   }
 
   /**
